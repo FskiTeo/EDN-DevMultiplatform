@@ -1,0 +1,19 @@
+1. Le projet contient **3 modules Gradle** : `:androidApp`, `:desktopApp` et `:shared`. Ils sont déclarés dans `settings.gradle.kts` avec trois appels à `include(...)`. `iosApp` n'en fait pas partie : c'est un projet Xcode natif (Swift/Objective-C) qui consomme le framework produit par `shared`, mais ce n'est pas un sous-projet Gradle.
+
+2. Les versions sont définies dans `gradle/libs.versions.toml` : Kotlin **2.4.21**, Compose Multiplatform **1.12.2** et Android Gradle Plugin (AGP) **9.1.1**. La version de Gradle est **9.5.1**, indiquée par `gradle/wrapper/gradle-wrapper.properties`.
+
+3. `shared/build.gradle.kts` applique les plugins Kotlin Multiplatform, Android Kotlin Multiplatform Library, Compose Multiplatform et Compose Compiler. `androidApp/build.gradle.kts` applique Android Application et Compose Compiler. Il n'applique pas `org.jetbrains.kotlin.android` car, avec AGP 9, la prise en charge de Kotlin Android est intégrée à AGP ; le plugin Kotlin Android séparé n'est donc plus nécessaire.
+
+4. Le `minSdk` de la bibliothèque partagée est configuré dans le bloc `kotlin { android { ... } }` de `shared/build.gradle.kts`. Celui de l'application est configuré dans `android { defaultConfig { ... } }` de `androidApp/build.gradle.kts`. Dans les deux cas, la valeur vient du catalog (`libs.versions.android.minSdk`), et n'est pas écrite en dur ; le catalog fixe cette valeur à **36**.
+
+5. Les dossiers de `shared/src/` sont `commonMain`, `commonTest`, `androidMain`, `androidHostTest`, `iosMain`, `iosTest`, `jvmMain` et `jvmTest`. Il n'y a pas de `iosArm64Main` car Kotlin Multiplatform utilise la hiérarchie par défaut : `iosMain` est un source set commun aux cibles iOS `iosArm64()` et `iosSimulatorArm64()`.
+
+6. `expect fun getPlatform()` est déclarée dans `shared/src/commonMain/kotlin/fr/m2/pokequiz/Platform.kt`. Il existe **3** fonctions `actual` : dans `shared/src/androidMain/kotlin/fr/m2/pokequiz/Platform.android.kt`, `shared/src/iosMain/kotlin/fr/m2/pokequiz/Platform.ios.kt` et `shared/src/jvmMain/kotlin/fr/m2/pokequiz/Platform.jvm.kt`.
+
+7. L'`applicationId` Android est `fr.m2.pokequiz`, dans `androidApp/build.gradle.kts`. La `mainClass` desktop est `fr.m2.pokequiz.MainKt`. Le suffixe `Kt` vient du fait que la fonction `main` est déclarée dans le fichier Kotlin `main.kt` au niveau supérieur ; le compilateur génère alors une classe JVM nommée `MainKt`.
+
+8. La fonction `App()` est définie dans `shared/src/commonMain/kotlin/fr/m2/pokequiz/App.kt`. Elle est appelée depuis **4 endroits** : `MainActivity.kt` (dans `setContent`), `MainActivity.kt` (dans `AppAndroidPreview`), `desktopApp/src/main/kotlin/fr/m2/pokequiz/main.kt` (dans la fenêtre desktop) et `shared/src/iosMain/kotlin/fr/m2/pokequiz/MainViewController.kt` (dans le contrôleur iOS).
+
+9. Le `.gitignore` généré ignore notamment les fichiers `.iml`, `.kotlin`, `.gradle`, les dossiers `build/`, `xcuserdata`, `local.properties`, `.idea`, `.DS_Store`, les captures, les fichiers de build natif (`.externalNativeBuild`, `.cxx`), les fichiers Xcode générés et `node_modules/`. `local.properties` doit être ignoré car il contient des chemins propres à la machine, notamment `sdk.dir`, et ne peut donc pas être partagé de façon portable ; il peut aussi révéler l'organisation locale des fichiers.
+
+10. Dans `shared/src/commonMain/.../App.kt`, l'IDE signale une erreur du type **Unresolved reference: `java`** (ou `File`). `java.io.File` appartient à la bibliothèque standard de la JVM et n'est donc pas disponible dans `commonMain`, dont le code doit pouvoir être compilé pour toutes les plateformes, notamment iOS. Il faudrait placer ce code dans `jvmMain` ou utiliser une abstraction `expect`/`actual` avec une implémentation spécifique à chaque plateforme.
